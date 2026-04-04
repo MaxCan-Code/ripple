@@ -107,6 +107,17 @@ to perl (gzip is also POSIX standard):
 gzip -dc ripple-min.gz | perl - -e "⎕←747753"
 ```
 
+## It fits in a QR code
+
+The minified ripple is small enough to encode as a QR code. `minis/ripple-qr.png`
+contains the entire RIDE client:
+
+![ripple QR code](minis/ripple-qr.png)
+
+```sh
+zbarimg --raw -q ripple-qr.png | perl - -e "⎕←747753"
+```
+
 ## How it works
 
 The RIDE protocol runs over raw TCP with a simple framing format: `[4-byte big-endian length][RIDE + payload]`. Ripple performs the protocol handshake (`SupportedProtocols`, `UsingProtocol`, `Identify`, `Connect`), waits for the interpreter to be ready, then sends `Execute` commands sequentially — waiting for each to complete before sending the next. Then it closes the connection, leaving the Dyalog session running and further clients able to connect.
