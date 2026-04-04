@@ -19,20 +19,20 @@ my @exprs;
 GetOptions(
     'addr=s' => \$addr,
     'e=s'    => \@exprs,
-) or die "Usage: ripple [-addr host:port] [-e expr]... [script.apl]\n";
+) or die "Usage: ripple [-addr host:port] [-e expr]... [script.apl]";
 
 for my $file (@ARGV) {
-    open my $fh, '<', $file or die "Cannot open $file: $!\n";
+    open my $fh, '<', $file or die "Cannot open $file: $!";
     while (<$fh>) {
         s/^\s+//; s/\s+$//;
         push @exprs, $_ if length;
     }
 }
 
-if (!@exprs) { die "Usage: ripple [-addr host:port] [-e expr]... [script.apl]\n" }
+if (!@exprs) { die "Usage: ripple [-addr host:port] [-e expr]... [script.apl]" }
 
 my $sock = IO::Socket::INET->new(PeerAddr => $addr, Proto => 'tcp', Timeout => 10)
-    // die "Cannot connect to $addr: $!\n";
+    // die "Cannot connect to $addr: $!";
 
 # RIDE framing: [4-byte BE length (includes itself)] [payload]
 sub ride_send {
@@ -41,12 +41,12 @@ sub ride_send {
 }
 
 sub ride_recv {
-    read($sock, my $buf, 4) == 4 or die "Connection closed\n";
+    read($sock, my $buf, 4) == 4 or die "Connection closed";
     my $len = unpack('N', $buf);
-    die "Invalid length: $len\n" if $len < 8 || $len > 10_000_000;
+    die "Invalid length: $len" if $len < 8 || $len > 1e7;
     my $payload = '';
     while (length($payload) < $len - 4) {
-        read($sock, my $chunk, $len - 4 - length($payload)) or die "Connection closed\n";
+        read($sock, my $chunk, $len - 4 - length($payload)) or die "Connection closed";
         $payload .= $chunk;
     }
     $payload =~ s/^RIDE//;
@@ -56,16 +56,22 @@ sub ride_recv {
 sub wait_for_prompt {
     while (1) {
         my $msg = ride_recv();
+        if ($msg =~ /"AppendSessionOutput"/ && $msg =~ /"type"\s*:\s*(\d+)/ && $1 != 14) {
+            if ($msg =~ /"result"\s*:\s*"((?:[^"\\]|\\.)*)"/) {
+                (my $text = $1) =~ s/\\(.)/$1 eq 'n' ? "\n" : $1/ge;
+                print $text;
+            }
+        }
         return if $msg =~ /"SetPromptType"/ && $msg =~ /"type"\s*:\s*([0-9]+)/ && $1 > 0;
     }
 }
 
 my $msg = ride_recv();
-die "Expected SupportedProtocols=2, got: $msg\n" unless $msg eq 'SupportedProtocols=2';
+die "Expected SupportedProtocols=2, got: $msg" unless $msg eq 'SupportedProtocols=2';
 ride_send('SupportedProtocols=2');
 ride_send('UsingProtocol=2');
 $msg = ride_recv();
-die "Expected UsingProtocol=2, got: $msg\n" unless $msg eq 'UsingProtocol=2';
+die "Expected UsingProtocol=2, got: $msg" unless $msg eq 'UsingProtocol=2';
 ride_send('["Identify",{"apiVersion":1,"identity":1}]');
 ride_send('["Connect",{"remoteId":2}]');
 wait_for_prompt();
